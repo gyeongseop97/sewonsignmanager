@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Education Signature Manager</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Education Signature Manager</h1>
+      <p>법정 의무교육 전자서명 관리</p>
+    </div>
+    <div class="badge">Prototype v1.6</div>
+  </header>
+
+  <main class="app">
+    <section class="login-card" id="loginScreen">
+      <div class="tabs">
+        <button class="tab active" data-login-tab="adminLogin">관리자</button>
+        <button class="tab" data-login-tab="employeeLogin">교육 대상자</button>
+      </div>
+
+      <div id="adminLogin" class="login-panel active">
+        <h2>관리자 로그인</h2>
+        <label>관리자 ID</label>
+        <input id="adminId" value="admin" autocomplete="username" />
+        <label>비밀번호</label>
+        <input id="adminPassword" type="password" value="1234" autocomplete="current-password" />
+        <button class="primary full" id="adminLoginBtn">관리자 접속</button>
+        <p class="hint">초기값: admin / 1234 · 실제 운영 시 변경 필요</p>
+      </div>
+
+      <div id="employeeLogin" class="login-panel">
+        <h2>교육 대상자 로그인</h2>
+        <label>이름</label>
+        <input id="empLoginName" placeholder="예: 김OO" />
+        <label>사번</label>
+        <input id="empLoginNo" placeholder="예: 10001" />
+        <label>휴대폰 번호 전체</label>
+        <input id="empLoginPhone" placeholder="예: 01012345678" />
+        <button class="primary full" id="employeeLoginBtn">내 교육 확인</button>
+        <p class="hint">입력값이 직원 DB와 일치해야 접속됩니다.</p>
+      </div>
+    </section>
+
+    <section class="dashboard hidden" id="adminDashboard">
+      <aside class="sidebar">
+        <div class="userbox">
+          <strong>관리자</strong>
+          <button class="ghost small" id="adminLogoutBtn">로그아웃</button>
+        </div>
+        <button class="nav active" data-view="employeeView">직원 DB</button>
+        <button class="nav" data-view="educationManageView">교육 관리</button>
+        <button class="nav" data-view="statusView">서명 현황/출력</button>
+        <button class="nav danger" id="resetAllBtn">전체 데이터 초기화</button>
+      </aside>
+
+      <div class="content">
+        <section class="view active" id="employeeView">
+          <div class="section-head">
+            <div>
+              <h2>직원 DB</h2>
+              <p>전체 직원 명단을 엑셀로 업로드하고, 입퇴사에 따라 관리합니다.</p>
+            </div>
+          </div>
+
+          <div class="panel grid-2">
+            <div>
+              <h3>엑셀 업로드</h3>
+              <p class="hint">필수 열: 사번, 이름, 부서, 휴대폰번호 · 선택 열: 근무형태, 재직상태, 입사일, 퇴사일</p>
+              <input type="file" id="employeeExcel" accept=".xlsx,.xls,.csv" />
+              <div class="button-row">
+                <button class="primary" id="importEmployeesBtn">직원 명단 업로드</button>
+                <button id="downloadEmployeeTemplateBtn">직원양식 다운로드</button>
+              </div>
+            </div>
+            <div>
+              <h3>직원 직접 추가</h3>
+              <div class="mini-form">
+                <input id="newEmpNo" placeholder="사번" />
+                <input id="newEmpName" placeholder="이름" />
+                <input id="newEmpDept" placeholder="부서" />
+                <input id="newEmpPhone" placeholder="휴대폰번호" />
+                <select id="newEmpShift"><option>1반</option><option>2반</option><option>주간 정취</option></select>
+                <button class="primary" id="addEmployeeBtn">추가</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="filters">
+              <input id="employeeSearch" placeholder="이름/사번/부서 검색" />
+              <select id="employeeStatusFilter"><option value="">전체상태</option><option value="재직">재직</option><option value="퇴사">퇴사</option></select>
+              <select id="employeeShiftFilter"><option value="">전체근무형태</option><option value="1반">1반</option><option value="2반">2반</option><option value="주간 정취">주간 정취</option></select>
+            </div>
+            <div class="table-wrap"><table id="employeeTable"></table></div>
+          </div>
+        </section>
+
+        <section class="view" id="educationManageView">
+          <div class="section-head">
+            <div>
+              <h2>교육 관리</h2>
+              <p>교육 기본정보, 회차, 회차별 대상자 선택을 한 화면에서 등록합니다.</p>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>교육 등록 · 회차 · 대상자 설정</h3>
+            <p class="hint">법정교육 구분, 연도, 주기, 세부 주기를 선택한 후 회차 정보와 해당 회차의 대상자를 함께 설정합니다. 1차·2차·보충교육은 회차별로 대상자를 따로 저장합니다.</p>
+            <div id="educationEditBanner" class="edit-banner hidden"></div>
+            <div class="form-grid">
+              <div><label>법정교육 구분</label><select id="eduTypeSelect"></select></div>
+              <div id="eduTypeCustomWrap" class="hidden"><label>수시/기타 교육명</label><input id="eduTypeCustom" placeholder="예: 신규입사자 안전교육" /></div>
+              <div><label>연도</label><input id="eduYear" type="number" value="2026" /></div>
+              <div><label>주기</label><select id="eduPeriod"><option>월간</option><option>분기</option><option>반기</option><option selected>연간</option><option>수시</option></select></div>
+              <div><label>세부 주기</label><select id="eduPeriodDetail"></select></div>
+            </div>
+            <label>자동 완성 교육명</label>
+            <input id="eduTitle" class="readonly-field" readonly placeholder="선택값에 따라 자동 생성됩니다." />
+            <label>교육 요약내용</label>
+            <textarea id="eduSummary" rows="6" placeholder="교육 주요 내용을 입력하세요."></textarea>
+            <label>전자서명 동의 문구</label>
+            <textarea id="eduConsent" rows="3"></textarea>
+
+            <div class="subsection">
+              <h4>회차 정보</h4>
+              <div class="form-grid">
+                <div><label>회차</label><select id="sessionNo"><option>1차</option><option>2차</option><option>3차(보충)</option><option>보충</option><option>직접입력</option></select></div>
+                <div id="sessionNoCustomWrap" class="hidden"><label>직접입력 회차</label><input id="sessionNoCustom" placeholder="예: 4차" /></div>
+                <div><label>교육일자</label><input id="sessionDate" type="date" /></div>
+                <div><label>장소</label><input id="sessionLocation" placeholder="예: 본관 교육장" /></div>
+                <div><label>시작시간</label><input id="sessionStart" type="time" /></div>
+                <div><label>종료시간</label><input id="sessionEnd" type="time" /></div>
+                <div><label>상태</label><select id="sessionStatus"><option>예정</option><option selected>서명가능</option><option>마감</option></select></div>
+              </div>
+              <label>회차별 자동 교육명</label>
+              <input id="sessionTitlePreview" class="readonly-field" readonly />
+            </div>
+
+            <div class="subsection">
+              <h4>회차별 대상자 리스트</h4>
+              <div class="filters">
+                <input id="targetSearch" placeholder="이름/사번/부서 검색" />
+                <select id="targetDeptFilter"><option value="">전체부서</option></select>
+                <select id="targetShiftFilter"><option value="">전체근무형태</option><option value="1반">1반</option><option value="2반">2반</option><option value="주간 정취">주간 정취</option></select>
+                <select id="targetOnlyActive"><option value="재직">재직자만</option><option value="">전체</option></select>
+              </div>
+              <div class="button-row">
+                <button id="selectShift1Btn">1반 선택</button>
+                <button id="selectShift2Btn">2반 선택</button>
+                <button id="selectDayFixedBtn">주간 정취 선택</button>
+                <button id="selectAllFilteredBtn">검색결과 전체 선택</button>
+                <button id="deselectAllFilteredBtn">검색결과 선택 해제</button>
+                <button id="clearAllTargetsBtn">전체 대상 해제</button>
+              </div>
+              <div class="table-wrap tall"><table id="targetTable"></table></div>
+            </div>
+
+            <div class="button-row sticky-actions">
+              <button id="newEducationBtn">신규 교육 등록</button>
+              <button class="primary" id="saveIntegratedEducationBtn">교육/회차/대상자 저장</button>
+              <button id="clearEducationFormBtn">입력 초기화</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>등록된 교육</h3>
+            <div class="table-wrap"><table id="educationTable"></table></div>
+          </div>
+
+          <div class="panel">
+            <h3>회차 목록 / 회차별 대상자</h3>
+            <label>교육 선택</label>
+            <select id="sessionEducationSelect"></select>
+            <div class="table-wrap"><table id="sessionTable"></table></div>
+          </div>
+        </section>
+
+        <section class="view" id="statusView">
+          <h2>서명 현황 / 출력</h2>
+          <div class="panel">
+            <div class="form-grid">
+              <div><label>교육 선택</label><select id="statusEducationSelect"></select></div>
+              <div><label>출력 기준</label><select id="exportMode"><option value="all">전체 통합</option><option value="session">회차별</option></select></div>
+              <div><label>회차 선택</label><select id="statusSessionSelect"></select></div>
+              <div><label>표시</label><select id="statusFilter"><option value="">전체</option><option value="completed">완료</option><option value="pending">미완료</option></select></div>
+            </div>
+            <div class="stats" id="statusStats"></div>
+            <div class="button-row">
+              <button class="primary" id="exportExcelBtn">Excel 서명부 내보내기</button>
+              <button class="primary" id="exportPdfBtn">PDF/인쇄용 서명부 열기</button>
+              <button id="exportPendingBtn">미서명자 CSV 다운로드</button>
+            </div>
+            <div class="table-wrap tall"><table id="statusTable"></table></div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="dashboard hidden" id="employeeDashboard">
+      <aside class="sidebar">
+        <div class="userbox">
+          <strong id="loggedEmployeeName"></strong>
+          <span id="loggedEmployeeMeta"></span>
+          <button class="ghost small" id="employeeLogoutBtn">로그아웃</button>
+        </div>
+      </aside>
+      <div class="content">
+        <section class="view active">
+          <h2>나의 교육 목록</h2>
+          <div id="myEducationList" class="cards"></div>
+          <div id="signaturePanel" class="panel hidden">
+            <h3 id="signEduTitle"></h3>
+            <p id="signEduMeta" class="hint"></p>
+            <div class="summary-box" id="signEduSummary"></div>
+            <label>참석 회차</label>
+            <select id="signSessionSelect"></select>
+            <label class="checkline"><input type="checkbox" id="consentCheck" /> <span id="consentText"></span></label>
+            <label>전자서명</label>
+            <canvas id="signatureCanvas" width="640" height="220"></canvas>
+            <div class="button-row">
+              <button id="clearSignatureBtn">서명 지우기</button>
+              <button class="primary" id="submitSignatureBtn">서명 제출</button>
+              <button id="closeSignaturePanelBtn">닫기</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">Local prototype · 실제 운영 시 Supabase/사내 DB 연동 권장</footer>
+  <script src="app.js"></script>
+</body>
+</html>
