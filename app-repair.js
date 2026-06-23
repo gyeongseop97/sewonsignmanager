@@ -1,5 +1,8 @@
 (async function(){
   try{
+    var st=document.createElement('script');
+    st.src='stable-login.js?v=1';
+    document.head.appendChild(st);
     var u=document.createElement('script');
     u.src='octomo-qr-ui.js?v=restore-3';
     document.head.appendChild(u);
