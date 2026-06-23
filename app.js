@@ -183,3 +183,4 @@ function exportPendingCsv(){ const eduId=$('statusEducationSelect').value; if(!e
 function initReset(){ $('resetAllBtn')?.addEventListener('click',()=>alertMsg('Supabase 연결 버전에서는 전체 초기화를 비활성화했습니다. 필요한 경우 Supabase에서 직접 백업 후 삭제해 주세요.')); }
 async function boot(){ try{ await initConfig(); initTabs(); initNav(); initLogins(); initEmployeeActions(); initEducationActions(); initSessionActions(); initTargetActions(); initStatusActions(); initSignatureActions(); initReset(); clearEducationForm(true); showLogin(); }catch(e){ document.body.innerHTML=`<main class="app"><div class="panel"><h2>초기화 오류</h2><p>${escapeHtml(e.message)}</p></div></main>`; } }
 boot();
+<script src="ui-patch.js"></script>
