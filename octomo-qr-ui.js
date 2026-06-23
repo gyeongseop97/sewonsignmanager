@@ -1,0 +1,8 @@
+(function(){
+  function isMobile(){return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||'') || (window.matchMedia&&window.matchMedia('(pointer: coarse)').matches&&window.innerWidth<=900)}
+  function findCode(box){var nodes=box.querySelectorAll('div');for(var i=0;i<nodes.length;i++){if((nodes[i].textContent||'').trim()==='인증코드'&&nodes[i+1])return (nodes[i+1].textContent||'').trim()}return ''}
+  async function apply(){var box=document.getElementById('octomoVerifyBox');if(!box||isMobile())return;if(box.dataset.pcqr==='1')return;box.dataset.pcqr='1';var link=document.getElementById('octomoSmsLink');if(link)link.style.display='none';var code=findCode(box);var holder=document.createElement('div');holder.className='octomo-qr-card';holder.innerHTML='<div class="octomo-qr-title">휴대폰 카메라로 스캔</div><div class="octomo-qr-status">QR 코드 생성 중...</div>';var check=document.getElementById('octomoCheckBtn');box.insertBefore(holder,check||null);try{var res=await fetch('/api/octomo-qr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:code})});var data=await res.json().catch(function(){return{}});if(!res.ok||!data.qrCode)throw new Error(data.error||'QR 생성 실패');holder.innerHTML='<div class="octomo-qr-title">휴대폰 카메라로 스캔</div><img src="'+data.qrCode+'" alt="SMS QR"><div class="octomo-qr-status">문자 앱에 수신번호와 인증코드가 자동 입력됩니다.</div>'}catch(e){holder.innerHTML='<div class="octomo-qr-status">QR 생성에 실패했습니다. 수신번호와 인증코드를 직접 문자로 보내 주세요.</div>'}}
+  new MutationObserver(apply).observe(document.documentElement,{childList:true,subtree:true});
+  document.addEventListener('DOMContentLoaded',apply);
+  setInterval(apply,1000);
+})();
