@@ -6,6 +6,7 @@
   function byId(id){ return document.getElementById(id); }
   function val(id){ var el=byId(id); return el ? String(el.value||'').trim() : ''; }
   function phone(v){ return String(v||'').replace(/[^0-9]/g,''); }
+  function esc(v){ return String(v||'').replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 
   function findEdu(btn){
     var tr=btn.closest('tr');
@@ -37,17 +38,25 @@
     if(btn && btn.parentNode) btn.parentNode.insertBefore(box, btn.nextSibling);
     return box;
   }
+  function smsHref(receiver, code){
+    var to=String(receiver||'').replace(/[^0-9]/g,'');
+    var body=encodeURIComponent(String(code||''));
+    return 'sms:'+to+'?&body='+body;
+  }
   function showOctomoBox(data){
     var box=ensureOctomoBox();
+    var href=smsHref(data.receiverNumber,data.code);
     box.innerHTML=''
       +'<b>휴대폰 본인인증</b>'
-      +'<p style="margin:8px 0 10px;color:#334155">아래 인증코드를 본인 휴대폰 문자로 발송한 뒤 인증 확인을 눌러주세요.</p>'
+      +'<p style="margin:8px 0 10px;color:#334155">아래 버튼을 누르면 문자 앱이 열리고 수신번호와 인증코드가 자동 입력됩니다. 문자 앱에서 <b>전송</b>만 눌러주세요.</p>'
       +'<div style="display:grid;grid-template-columns:90px 1fr;gap:6px;margin:8px 0">'
-      +'<div>수신번호</div><div><b>'+data.receiverNumber+'</b></div>'
-      +'<div>인증코드</div><div style="font-size:24px;font-weight:800;letter-spacing:2px">'+data.code+'</div>'
+      +'<div>수신번호</div><div><b>'+esc(data.receiverNumber)+'</b></div>'
+      +'<div>인증코드</div><div style="font-size:24px;font-weight:800;letter-spacing:2px">'+esc(data.code)+'</div>'
       +'</div>'
-      +'<button class="primary full" id="octomoCheckBtn" type="button">인증 확인</button>'
-      +'<button class="full" id="octomoRestartBtn" type="button">인증코드 다시 받기</button>';
+      +'<a class="primary full" id="octomoSmsLink" href="'+href+'" style="display:block;text-align:center;text-decoration:none">문자 앱 열기</a>'
+      +'<button class="primary full" id="octomoCheckBtn" type="button">전송 후 인증 확인</button>'
+      +'<button class="full" id="octomoRestartBtn" type="button">인증코드 다시 받기</button>'
+      +'<p style="margin:10px 0 0;color:#64748b;font-size:13px">문자 앱이 자동으로 열리지 않으면 수신번호와 인증코드를 직접 입력해 주세요.</p>';
     box.style.display='block';
     byId('octomoCheckBtn').onclick=function(){ checkOctomo().catch(function(e){ msg(e.message||e); }); };
     byId('octomoRestartBtn').onclick=function(){ startOctomo().catch(function(e){ msg(e.message||e); }); };
