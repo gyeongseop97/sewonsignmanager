@@ -1,1 +1,2 @@
-var u='/api/'+'delete'+'-education';
+console.log('ready');
+var x = 1;
