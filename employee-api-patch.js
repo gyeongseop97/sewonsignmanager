@@ -1,1 +1,1 @@
-console.log('patch');
+fetch('/api/employee-login');
