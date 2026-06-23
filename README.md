@@ -1,4 +1,4 @@
-# Sewon Sign Manager v2.1
+# Sewon Sign Manager v2.2
 
 법정 의무교육 전자서명 관리 프로그램입니다.
 
@@ -24,3 +24,11 @@ values ('복사한_USER_UID', '관리자이메일', '관리자명', 'admin', tru
 ## 실행/배포
 
 Vercel 환경변수와 Supabase 테이블이 준비된 상태에서 배포하면 됩니다.
+
+
+## v2.2 변경사항
+
+- 관리자 기본 ID/PW 하드코딩 제거 상태 유지
+- Supabase Auth + admin_users 권한 테이블 기반 관리자 로그인
+- 직원/교육 기본 데이터 없음
+- Vercel 환경변수 값에 공백/줄바꿈이 포함되어도 trim 처리
