@@ -1,9 +1,9 @@
 (function(){
   function g(id){return document.getElementById(id)}
   function tab(id){document.querySelectorAll('[data-login-tab]').forEach(function(b){b.classList.toggle('active',b.dataset.loginTab===id)});document.querySelectorAll('.login-panel').forEach(function(p){p.classList.toggle('active',p.id===id)})}
-  window.addEventListener('DOMContentLoaded',function(){
-    document.querySelectorAll('[data-login-tab]').forEach(function(b){b.addEventListener('click',function(){tab(b.dataset.loginTab)},true)});
-    if(g('adminLoginBtn'))g('adminLoginBtn').addEventListener('click',function(){if(typeof authSignIn==='function'){document.dispatchEvent(new CustomEvent('sewonAdminLogin'))}},true);
-    if(g('employeeLoginBtn'))g('employeeLoginBtn').addEventListener('click',function(){if(typeof normalizeText==='function'){document.dispatchEvent(new CustomEvent('sewonEmployeeLogin'))}},true);
-  });
+  function ph(v){return String(v||'').replace(/[^0-9]/g,'')}
+  async function ready(){if(typeof initConfig==='function'&&(!CONFIG||!CONFIG.supabaseUrl))await initConfig()}
+  async function admin(){await ready();var email=(g('adminId').value||'').trim();var pw=g('adminPassword').value||'';if(!email||!pw)return alert('관리자 이메일과 비밀번호를 입력해 주세요.');var s=await authSignIn(email,pw);currentAdminSession=s;await ensureAdminUser(s);sessionStorage.setItem('sewon_admin_session',JSON.stringify(s));g('adminPassword').value='';await showAdmin()}
+  async function emp(){await ready();var name=(g('empLoginName').value||'').trim();var no=(g('empLoginNo').value||'').trim();var phone=ph(g('empLoginPhone').value);if(!name||!no||!phone)return alert('이름, 사번, 휴대폰 번호를 모두 입력해 주세요.');var q='?select=*&name=eq.'+encodeURIComponent(name)+'&employee_no=eq.'+encodeURIComponent(no)+'&phone_number=eq.'+encodeURIComponent(phone)+'&employment_status=neq.'+encodeURIComponent('퇴사');var rows=await db('employees',{query:q});var e=rows&&rows[0];if(!e)return alert('직원 정보가 일치하지 않거나 퇴사 상태입니다. 관리자에게 문의해 주세요.');await showEmployee(e)}
+  window.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('[data-login-tab]').forEach(function(b){b.onclick=function(){tab(b.dataset.loginTab)}});if(g('adminLoginBtn'))g('adminLoginBtn').onclick=function(){admin().catch(function(e){alert(e.message)})};if(g('employeeLoginBtn'))g('employeeLoginBtn').onclick=function(){emp().catch(function(e){alert(e.message)})}})
 })();
