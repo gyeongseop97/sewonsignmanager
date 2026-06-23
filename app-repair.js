@@ -1,5 +1,8 @@
 (async function(){
   try{
+    var u=document.createElement('script');
+    u.src='octomo-qr-ui.js?v=1';
+    document.head.appendChild(u);
     var h='https://raw.githubusercontent.com/';
     var p='gyeongseop97/sewonsignmanager/494d503165374d896da2ed155476aadd8fa6b8b1/app.js';
     var res=await fetch(h+p,{cache:'no-store'});
