@@ -1,8 +1,7 @@
 const DEFAULT_CONSENT = '본인은 본 교육자료 및 교육내용을 확인하였으며, 본 전자서명이 교육 이수 확인을 위한 본인의 서명으로 사용되는 것에 동의합니다.';
-const ADMIN_ID = 'admin';
-const ADMIN_PASSWORD = '1234';
 const LEGAL_EDU_TYPES = ['산업안전보건교육','직장 내 괴롭힘 예방교육','성희롱 예방교육','개인정보보호교육','장애인 인식개선교육','퇴직연금교육','소방안전교육','응급처치교육','기타/수시교육 직접입력'];
 let CONFIG = null;
+let currentAdminSession = null;
 let state = { employees: [], educations: [], sessions: [], targets: [], signatures: [] };
 let currentEmployee = null;
 let selectedSignEducationId = null;
@@ -42,7 +41,31 @@ async function initConfig(){
   CONFIG = await res.json();
   if(!CONFIG.supabaseUrl || !CONFIG.supabaseKey) throw new Error('Supabase 환경변수가 없습니다.');
 }
-function restHeaders(extra={}){ return { apikey: CONFIG.supabaseKey, Authorization: `Bearer ${CONFIG.supabaseKey}`, 'Content-Type':'application/json', ...extra }; }
+function activeBearer(){ return currentAdminSession?.access_token || CONFIG.supabaseKey; }
+function restHeaders(extra={}){ return { apikey: CONFIG.supabaseKey, Authorization: `Bearer ${activeBearer()}`, 'Content-Type':'application/json', ...extra }; }
+async function authSignIn(email, password){
+  const res = await fetch(`${CONFIG.supabaseUrl}/auth/v1/token?grant_type=password`, {
+    method:'POST',
+    headers:{ apikey: CONFIG.supabaseKey, 'Content-Type':'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+  if(!res.ok){ throw new Error('관리자 이메일 또는 비밀번호가 맞지 않습니다.'); }
+  return await res.json();
+}
+async function authLogout(){
+  if(currentAdminSession?.access_token){
+    try{ await fetch(`${CONFIG.supabaseUrl}/auth/v1/logout`, { method:'POST', headers:{ apikey: CONFIG.supabaseKey, Authorization:`Bearer ${currentAdminSession.access_token}` } }); }catch(e){}
+  }
+  currentAdminSession = null;
+  sessionStorage.removeItem('sewon_admin_session');
+}
+async function ensureAdminUser(session){
+  const user = session?.user;
+  if(!user?.id) throw new Error('관리자 사용자 정보를 확인할 수 없습니다.');
+  const rows = await db('admin_users', { query:`?select=*&auth_user_id=eq.${encodeURIComponent(user.id)}&is_active=eq.true` });
+  if(!rows?.length) throw new Error('관리자 권한이 등록되지 않은 계정입니다. Supabase admin_users 테이블을 확인해 주세요.');
+  return rows[0];
+}
 async function db(table, { method='GET', query='', body=null, prefer='' }={}){
   const url = `${CONFIG.supabaseUrl}/rest/v1/${table}${query}`;
   const headers = restHeaders(prefer ? { Prefer: prefer } : {});
@@ -77,22 +100,44 @@ function setEducationEditMode(educationId=null, sessionId=null){ editingEducatio
 function updateEducationEditBanner(){ const banner=$('educationEditBanner'), saveBtn=$('saveIntegratedEducationBtn'); if(!banner||!saveBtn) return; if(editingEducationId){ const edu=getEdu(editingEducationId); const ses=editingSessionId?getSession(editingSessionId):null; banner.classList.remove('hidden'); banner.innerHTML = `<b>수정 모드</b> · ${escapeHtml(edu?.title||'')}${ses?` · ${escapeHtml(ses.session_no||'')} 회차 수정 중`:' · 교육 기본정보 수정 중'}<br><span>신규 등록은 ‘입력 초기화’를 누른 뒤 저장해 주세요.</span>`; saveBtn.textContent = editingSessionId ? '교육/회차/대상자 수정 저장' : '교육 기본정보 수정 저장'; } else { banner.classList.add('hidden'); banner.textContent=''; saveBtn.textContent='교육/회차/대상자 저장'; } }
 
 function showLogin(){ $('loginScreen').classList.remove('hidden'); $('adminDashboard').classList.add('hidden'); $('employeeDashboard').classList.add('hidden'); }
-async function showAdmin(){ $('loginScreen').classList.add('hidden'); $('adminDashboard').classList.remove('hidden'); $('employeeDashboard').classList.add('hidden'); await refreshAndRender(); }
+async function showAdmin(){ $('loginScreen').classList.add('hidden'); $('adminDashboard').classList.remove('hidden'); $('employeeDashboard').classList.add('hidden'); const adminLabel = $('adminUserLabel'); if(adminLabel) adminLabel.textContent = currentAdminSession?.user?.email || '관리자'; await refreshAndRender(); }
 async function showEmployee(emp){ currentEmployee=emp; $('loginScreen').classList.add('hidden'); $('adminDashboard').classList.add('hidden'); $('employeeDashboard').classList.remove('hidden'); $('loggedEmployeeName').textContent=`${emp.name} 님`; $('loggedEmployeeMeta').textContent=`${emp.department||'-'} · ${emp.employee_no}`; await loadAllData(); renderMyEducations(); }
 function initTabs(){ document.querySelectorAll('[data-login-tab]').forEach(btn=>btn.addEventListener('click',()=>{ document.querySelectorAll('[data-login-tab]').forEach(b=>b.classList.remove('active')); document.querySelectorAll('.login-panel').forEach(p=>p.classList.remove('active')); btn.classList.add('active'); $(btn.dataset.loginTab).classList.add('active'); })); }
 function initNav(){ document.querySelectorAll('.nav[data-view]').forEach(btn=>btn.addEventListener('click',async()=>{ document.querySelectorAll('.nav[data-view]').forEach(b=>b.classList.remove('active')); document.querySelectorAll('#adminDashboard .view').forEach(v=>v.classList.remove('active')); btn.classList.add('active'); $(btn.dataset.view).classList.add('active'); await refreshAndRender(); })); }
 function renderAllAdmin(){ fillEducationSelects(); renderEmployees(); renderEducations(); renderSessions(); renderTargetDeptOptions(); renderTargets(); renderStatus(); }
 
 function initLogins(){
-  $('adminLoginBtn').addEventListener('click', async()=>{ if(normalizeText($('adminId').value)===ADMIN_ID && $('adminPassword').value===ADMIN_PASSWORD) await showAdmin(); else alertMsg('관리자 ID 또는 비밀번호가 맞지 않습니다.'); });
+  const saved = sessionStorage.getItem('sewon_admin_session');
+  if(saved){
+    try{ currentAdminSession = JSON.parse(saved); }catch(e){ currentAdminSession = null; }
+  }
+  $('adminLoginBtn').addEventListener('click', async()=>{
+    try{
+      const email = normalizeText($('adminId').value);
+      const password = $('adminPassword').value;
+      if(!email || !password) return alertMsg('관리자 이메일과 비밀번호를 입력해 주세요.');
+      const session = await authSignIn(email, password);
+      currentAdminSession = session;
+      await ensureAdminUser(session);
+      sessionStorage.setItem('sewon_admin_session', JSON.stringify(session));
+      $('adminPassword').value = '';
+      await showAdmin();
+    }catch(e){
+      currentAdminSession = null;
+      sessionStorage.removeItem('sewon_admin_session');
+      alertMsg(e.message);
+    }
+  });
   $('employeeLoginBtn').addEventListener('click', async()=>{ try{ const name=normalizeText($('empLoginName').value); const no=normalizeText($('empLoginNo').value); const phone=normalizePhone($('empLoginPhone').value); const q=`?select=*&name=eq.${encodeURIComponent(name)}&employee_no=eq.${encodeURIComponent(no)}&phone_number=eq.${encodeURIComponent(phone)}&employment_status=neq.${encodeURIComponent('퇴사')}`; const rows=await db('employees',{query:q}); const emp=rows?.[0]; if(!emp) return alertMsg('직원 정보가 일치하지 않거나 퇴사 상태입니다. 관리자에게 문의해 주세요.'); await showEmployee(emp); }catch(e){ alertMsg(e.message); } });
-  $('adminLogoutBtn').addEventListener('click', showLogin); $('employeeLogoutBtn').addEventListener('click',()=>{ currentEmployee=null; showLogin(); });
+  $('adminLogoutBtn').addEventListener('click', async()=>{ await authLogout(); showLogin(); });
+  $('employeeLogoutBtn').addEventListener('click',()=>{ currentEmployee=null; showLogin(); });
 }
+
 function employeeRowFromObject(row){ return { employee_no:normalizeText(row['사번']??row.employee_no??row['Employee No']??row.NO??row.No), name:normalizeText(row['이름']??row['성명']??row.name??row.Name), department:normalizeText(row['부서']??row.department??row.Department), phone_number:normalizePhone(row['휴대폰번호']??row['휴대폰 번호']??row['전화번호']??row.phone_number??row.Phone), shift_type:normalizeWorkType(row['근무형태']??row['근무조']??row.shift_type??row.Shift??'주간 정취'), employment_status:normalizeText(row['재직상태']??row.employment_status??row.Status??'재직')||'재직', hire_date:normalizeText(row['입사일']??row.hire_date??'')||null, resign_date:normalizeText(row['퇴사일']??row.resign_date??'')||null }; }
 async function importEmployeesFromRows(rows){ let skipped=0; const payload=[]; rows.forEach(raw=>{ const r=employeeRowFromObject(raw); if(!r.employee_no||!r.name||!r.department||!r.phone_number){ skipped++; return; } payload.push(r); }); if(payload.length) await db('employees',{method:'POST',query:'?on_conflict=employee_no',body:payload,prefer:'resolution=merge-duplicates,return=representation'}); await refreshAndRender(); alertMsg(`직원 업로드 완료\n처리: ${payload.length}명\n건너뜀: ${skipped}건`); }
 function initEmployeeActions(){
   $('importEmployeesBtn').addEventListener('click',()=>{ const file=$('employeeExcel').files[0]; if(!file) return alertMsg('업로드할 엑셀 파일을 선택해 주세요.'); const reader=new FileReader(); reader.onload=e=>{ const data=new Uint8Array(e.target.result); const wb=XLSX.read(data,{type:'array'}); const ws=wb.Sheets[wb.SheetNames[0]]; importEmployeesFromRows(XLSX.utils.sheet_to_json(ws,{defval:''})).catch(err=>alertMsg(err.message)); }; reader.readAsArrayBuffer(file); });
-  $('downloadEmployeeTemplateBtn').addEventListener('click',()=>{ const rows=[{사번:'10001',이름:'김OO',부서:'조립반',휴대폰번호:'01012345678',근무형태:'1반',재직상태:'재직',입사일:'2026-01-01',퇴사일:''},{사번:'10002',이름:'이OO',부서:'품질보증반',휴대폰번호:'01098765432',근무형태:'2반',재직상태:'재직',입사일:'2026-01-01',퇴사일:''}]; const ws=XLSX.utils.json_to_sheet(rows); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Employees'); XLSX.writeFile(wb,'employee_upload_template.xlsx'); });
+  $('downloadEmployeeTemplateBtn').addEventListener('click',()=>{ const ws=XLSX.utils.aoa_to_sheet([['사번','이름','부서','휴대폰번호','근무형태','재직상태','입사일','퇴사일']]); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Employees'); XLSX.writeFile(wb,'employee_upload_template.xlsx'); });
   $('addEmployeeBtn').addEventListener('click',async()=>{ try{ const payload={ employee_no:normalizeText($('newEmpNo').value), name:normalizeText($('newEmpName').value), department:normalizeText($('newEmpDept').value), phone_number:normalizePhone($('newEmpPhone').value), shift_type:normalizeWorkType($('newEmpShift').value), employment_status:'재직' }; if(!payload.employee_no||!payload.name||!payload.department||!payload.phone_number) return alertMsg('사번, 이름, 부서, 휴대폰번호를 모두 입력해 주세요.'); await db('employees',{method:'POST',body:payload,prefer:'return=representation'}); ['newEmpNo','newEmpName','newEmpDept','newEmpPhone'].forEach(id=>$(id).value=''); await refreshAndRender(); }catch(e){ alertMsg(e.message); } });
   ['employeeSearch','employeeStatusFilter','employeeShiftFilter'].forEach(id=>$(id).addEventListener('input',renderEmployees));
 }

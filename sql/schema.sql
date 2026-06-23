@@ -90,3 +90,20 @@ create index if not exists idx_targets_employee_id on education_targets(employee
 create index if not exists idx_signatures_education_id on education_signatures(education_id);
 create index if not exists idx_signatures_session_id on education_signatures(session_id);
 create index if not exists idx_signatures_employee_id on education_signatures(employee_id);
+
+
+
+create table if not exists admin_users (
+  id uuid primary key default gen_random_uuid(),
+  auth_user_id uuid not null unique,
+  email text not null unique,
+  name text,
+  role text not null default 'admin',
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_admin_users_auth_user_id on admin_users(auth_user_id);
+create index if not exists idx_admin_users_email on admin_users(email);
+

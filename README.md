@@ -1,26 +1,26 @@
-# Sewon Sign Manager - Supabase/R2 version
+# Sewon Sign Manager v2.1
 
-## Required Vercel Environment Variables
+법정 의무교육 전자서명 관리 프로그램입니다.
 
-- SUPABASE_URL
-- SUPABASE_PUBLISHABLE_KEY
-- CLOUDFLARE_ACCOUNT_ID
-- R2_BUCKET_NAME
-- R2_ACCESS_KEY_ID
-- R2_SECRET_ACCESS_KEY
+## 주요 변경사항
 
-## Files
+- 관리자 기본 계정과 기본 비밀번호를 코드에서 제거했습니다.
+- 관리자 로그인은 Supabase Authentication 계정으로 처리합니다.
+- Supabase `admin_users` 테이블에 등록된 계정만 관리자 화면에 접속할 수 있습니다.
+- 직원 기본 리스트, 교육 기본 데이터, 관리자 기본값은 포함하지 않습니다.
+- 직원 업로드 양식은 빈 양식만 다운로드됩니다.
 
-- index.html: UI
-- app.js: Supabase REST API based client
-- api/config.js: exposes public Supabase config to the browser
-- api/upload-signature.js: uploads signature PNG to Cloudflare R2
-- api/r2-file.js: private R2 image proxy
-- sql/schema.sql: Supabase table schema
+## 관리자 계정 등록 방법
 
-## Admin login
+1. Supabase Dashboard → Authentication → Users에서 관리자 이메일 계정을 생성합니다.
+2. 생성된 사용자의 User UID를 복사합니다.
+3. SQL Editor에서 아래 형식으로 관리자 권한을 부여합니다.
 
-- ID: admin
-- Password: 1234
+```sql
+insert into admin_users (auth_user_id, email, name, role, is_active)
+values ('복사한_USER_UID', '관리자이메일', '관리자명', 'admin', true);
+```
 
-Change these constants in app.js before real operation.
+## 실행/배포
+
+Vercel 환경변수와 Supabase 테이블이 준비된 상태에서 배포하면 됩니다.
