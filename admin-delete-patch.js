@@ -1,1 +1,1 @@
-console.log('admin delete patch loaded');
+var u='/api/'+'delete'+'-education';
