@@ -5,7 +5,9 @@
     var res=await fetch(h+p,{cache:'no-store'});
     if(!res.ok) throw new Error('load failed');
     var code=await res.text();
-    Function(code)();
+    var s=document.createElement('script');
+    s.textContent=code;
+    document.head.appendChild(s);
   }catch(e){
     alert('초기화 실패: '+(e.message||e));
   }
