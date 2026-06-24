@@ -1,5 +1,8 @@
 (async function(){
   try{
+    var pf=document.createElement('script');
+    pf.src='print-fit.js?v=1';
+    document.head.appendChild(pf);
     var st=document.createElement('script');
     st.src='stable-login.js?v=2';
     document.head.appendChild(st);
